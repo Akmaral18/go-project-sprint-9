@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log"
 	"sync"
+	"sync/atomic"
+	"time"
 )
 
 // Generator генерирует последовательность чисел 1,2,3 и т.д. и
@@ -14,12 +16,36 @@ import (
 func Generator(ctx context.Context, ch chan<- int64, fn func(int64)) {
 	// 1. Функция Generator
 	// ...
+	var num atomic.Int64
+	for {
+		select {
+		case ctx.Done():
+			close(ch)
+			return
+		case ch <- num.Add(1):
+			fn(num)
+		}
+	}
 }
 
 // Worker читает число из канала in и пишет его в канал out.
 func Worker(in <-chan int64, out chan<- int64) {
 	// 2. Функция Worker
 	// ...
+	defer close(out)
+	for v := range in {
+		time.Sleep(1 * time.Millisecond)
+		out <- v
+	}
+	//for {
+	//	v, ok := <-in
+	//	if !ok {
+	//		close(out)
+	//		return
+	//	}
+	//	time.Sleep(1 * time.Second)
+	//	out <- v
+	//}
 }
 
 func main() {
@@ -27,6 +53,8 @@ func main() {
 
 	// 3. Создание контекста
 	// ...
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
 
 	// для проверки будем считать количество и сумму отправленных чисел
 	var inputSum int64   // сумма сгенерированных чисел
